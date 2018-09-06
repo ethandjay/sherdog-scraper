@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import requests
 import random
+import re
 from bs4 import BeautifulSoup
 from multiprocessing import Pool
 
@@ -9,6 +10,12 @@ __author__ = "Ethan Jaynes"
 __version__ = "0.1.0"
 
 
+def strip_method(full_method):
+	match = re.search(r'\s(.*)\s\((.*)\)', full_method)
+	method = match.group(1)
+	method_by = match.group(2)
+
+	return (method, method_by)
 
 def request_event(url):
 
@@ -26,7 +33,7 @@ def request_event(url):
 		method:
 		method_by:
 		referee:
-		round:
+		round_num:
 		time:
 		event:
 		date:
@@ -35,9 +42,18 @@ def request_event(url):
 	"""
 	match_return = {}
 
-	# Get main fight
-	fighter1 = event_soup.select('.fight')[0].select('.left_side')[0].h3.span.string
-	fighter2 = event_soup.select('.fight')[0].select('.right_side')[0].h3.span.string
+	# Get and parse main fight
+	winner = event_soup.select('.fight')[0].select('.left_side')[0].h3.span.string
+	loser = event_soup.select('.fight')[0].select('.right_side')[0].h3.span.string
+
+	details = event_soup.select('.resume')[0].find('tr').find_all('td')
+	full_method = details[1].contents[-1]
+
+	method, method_by = strip_method(full_method)
+
+	referee = details[2].contents[-1].lstrip()
+	round_num = details[3].contents[-1].lstrip()
+	time = details[4].contents[-1].lstrip()
 
 	match_list = event_soup.select('.event_match')[0].div.table
 
