@@ -2,8 +2,12 @@
 import requests
 import random
 import re
+import pprint
+import multiprocessing
+import csv
+from joblib import Parallel, delayed
 from bs4 import BeautifulSoup
-from multiprocessing import Pool
+from csv import DictWriter
 
 
 __author__ = "Ethan Jaynes"
@@ -11,7 +15,7 @@ __version__ = "0.1.0"
 
 
 def strip_method(full_method):
-	match = re.search(r'\s(.*)\s\((.*)\)', full_method)
+	match = re.search(r'\s*(.*)\s\((.*)\)', full_method)
 	method = match.group(1)
 	method_by = match.group(2)
 
@@ -40,7 +44,12 @@ def request_event(url):
 		location:
 	}
 	"""
-	match_return = {}
+	match_return = []
+
+	# Get event info
+	event = event_soup.select('.section_title')[0].h1.span.contents[0]
+	date = event_soup.select('.authors_info')[0].select('.date')[0].contents[-1]
+	location = event_soup.find_all('span', {"itemprop" : "location"})[0].string
 
 	# Get and parse main fight
 	winner = event_soup.select('.fight')[0].select('.left_side')[0].h3.span.string
@@ -55,17 +64,56 @@ def request_event(url):
 	round_num = details[3].contents[-1].lstrip()
 	time = details[4].contents[-1].lstrip()
 
-	match_list = event_soup.select('.event_match')[0].div.table
+	match_return.append({
+		'winner': winner,
+		'loser': loser,
+		'method': method,
+		'method_by': method_by,
+		'referee': referee,
+		'round_num': round_num,
+		'time': time,
+		'event': event,
+		'date': date,
+		'location': location
+	})
+
+	match_list = event_soup.select('.event_match')[0].div.table.tbody.find_all('tr')
 
 	# Pop header tr
 	match_list.pop(0)
 
 	for match in match_list:
-		fighters = match.find_all('col_fc_upcoming')
-		for fighter in fighters:
-			name = fighter.select('.fighter_result_data')[0].a.span
+		contents = match.contents
+		fighters = (contents[3], contents[7])
 
-	return "hello"
+		winner = fighters[0].div.a.span.string
+		loser = fighters[1].div.a.span.string
+
+		details = contents[9].contents
+		full_method = details[0]
+
+		method, method_by = strip_method(full_method)
+
+		referee = details[-1].string
+		round_num = contents[11].string
+		time = contents[13].string
+
+		match_return.append({
+			'winner': winner,
+			'loser': loser,
+			'method': method,
+			'method_by': method_by,
+			'referee': referee,
+			'round_num': round_num,
+			'time': time,
+			'event': event,
+			'date': date,
+			'location': location
+		})
+
+	print("Done processing event")
+	return match_return
+	
 
 
 
@@ -84,12 +132,19 @@ def main():
     # String event links from onlick attr
     event_links = [row.get('onclick')[19:][:-2] for row in recent_list]
 
-    # pool = Pool(4)
+    num_cores = multiprocessing.cpu_count()
+    event_list = Parallel(n_jobs=num_cores, backend='threading')(delayed(request_event)(link) for link in event_links)
 
-    # match_list = pool.map(request_event, event_links)
+    with open('matches.csv', 'w', newline='') as f:
+	    fnames = ['winner','loser','method','method_by','referee','round_num','time','event','date','location']
+	    writer = csv.DictWriter(f, fieldnames=fnames)    
 
-    for link in event_links:
-    	request_event(link)
+	    writer.writeheader()
+	    for event in event_list:
+	    	for match in event:
+	    		writer.writerow(match)
+
+
 
 
 if __name__ == "__main__":
