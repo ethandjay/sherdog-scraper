@@ -5,6 +5,7 @@ import re
 import pprint
 import multiprocessing
 import csv
+import os
 from joblib import Parallel, delayed
 from bs4 import BeautifulSoup
 from csv import DictWriter
@@ -30,7 +31,7 @@ def strip_method(full_method):
 def request_event(url):
 
     base_url = "http://www.sherdog.com"
-    print(base_url + url)
+
     r = requests.get(base_url + url)
     
     event_soup = BeautifulSoup(r.text, "lxml")
@@ -55,6 +56,7 @@ def request_event(url):
 
     # Get event info
     event = event_soup.find_all('meta', {"property" : "og:title"})[0]['content']
+    print(f'Processing {event}...')
     date = event_soup.select('.authors_info')[0].select('.date')[0].contents[-1]
     location = event_soup.find_all('span', {"itemprop" : "location"})[0].string
 
@@ -121,7 +123,9 @@ def request_event(url):
             'location': location
         })
 
-    print("Done processing event")
+    print(f'Done processing {event}')
+    print()
+
     return match_return
     
 
@@ -133,6 +137,7 @@ def main():
     
     event_links = []
     k = 1
+    print('Gathering event listings...')
     while True:
 
         ufc_page = requests.get(f"http://www.sherdog.com/organizations/Ultimate-Fighting-Championship-UFC-2/recent-events/{k}")
@@ -155,13 +160,17 @@ def main():
 
         k = k + 1;
 
-
+    print('Event listings successfuly gathered')
 
     num_cores = multiprocessing.cpu_count()
     event_list = Parallel(n_jobs=num_cores, backend='threading')(delayed(request_event)(link) for link in event_links[:200])
     event_list = filter(None, event_list)
 
-    with open('matches.csv', 'w', newline='') as f:
+    print('Creating spreadsheet...')
+
+    this_dir = os.path.dirname(os.path.realpath(__file__))
+    file_path = os.path.join(this_dir, 'matches.csv')
+    with open(file_path, 'w', newline='') as f:
         fnames = ['winner','loser','method','method_by','referee','round_num','time','event','date','location']
         writer = csv.DictWriter(f, fieldnames=fnames)    
 
@@ -171,8 +180,8 @@ def main():
             for match in event:
                 writer.writerow(match)
 
-
-
+    print('Complete')
+    exit()
 
 if __name__ == "__main__":
     main()
