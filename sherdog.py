@@ -22,7 +22,7 @@ def strip_method(full_method):
         method = match.group(1)
         method_by = match.group(2)
     else:
-        method = full_method
+        method = full_method.lstrip()
         method_by = "N/A"
 
 
