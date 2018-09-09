@@ -163,7 +163,7 @@ def main():
     print('Event listings successfuly gathered')
 
     num_cores = multiprocessing.cpu_count()
-    event_list = Parallel(n_jobs=num_cores, backend='threading')(delayed(request_event)(link) for link in event_links[:200])
+    event_list = Parallel(n_jobs=num_cores, backend='threading')(delayed(request_event)(link) for link in event_links)
     event_list = filter(None, event_list)
 
     print('Creating spreadsheet...')
